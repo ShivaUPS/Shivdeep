@@ -1,0 +1,378 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Global Safety Net: Default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Reusable Hardened Primitives ---
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isEmailVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isVerifiedOwner(userId) {
+      return isEmailVerified() && request.auth.uid == userId;
+    }
+
+    function userProfileExists(userId) {
+      return exists(/databases/$(database)/documents/users/$(userId));
+    }
+
+    function threadExists(userId, threadId) {
+      return exists(/databases/$(database)/documents/users/$(userId)/threads/$(threadId));
+    }
+
+    // --- Validation Blueprints ---
+
+    function isValidSettings(s) {
+      return s is map
+        && s.keys().hasAll([
+          'autoSyncEnabled', 'syncOnWifiOnly', 'backgroundPushEnabled',
+          'maxBandwidthMbps', 'cloudBackupCadence', 'soundEffectsEnabled',
+          'clipboardSyncEnabled', 'batterySaverThreshold'
+        ])
+        && s.keys().hasOnly([
+          'autoSyncEnabled', 'syncOnWifiOnly', 'backgroundPushEnabled',
+          'maxBandwidthMbps', 'cloudBackupCadence', 'soundEffectsEnabled',
+          'clipboardSyncEnabled', 'batterySaverThreshold'
+        ])
+        && s.autoSyncEnabled is bool
+        && s.syncOnWifiOnly is bool
+        && s.backgroundPushEnabled is bool
+        && s.maxBandwidthMbps is number && s.maxBandwidthMbps >= 50 && s.maxBandwidthMbps <= 1000
+        && s.cloudBackupCadence is string && s.cloudBackupCadence in ['realtime', 'hourly', 'daily', 'manual']
+        && s.soundEffectsEnabled is bool
+        && s.clipboardSyncEnabled is bool
+        && s.batterySaverThreshold is number && s.batterySaverThreshold >= 5 && s.batterySaverThreshold <= 50;
+    }
+
+    function isValidUserProfile(data, userId) {
+      return data.keys().hasAll(['uid', 'displayName', 'email', 'seeded', 'settings', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'displayName', 'email', 'photoURL', 'seeded', 'settings', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid) && data.uid == userId && data.uid == request.auth.uid
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 100
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 254
+        && (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 500))
+        && data.seeded is bool
+        && isValidSettings(data.settings)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidDevice(data, userId, deviceId) {
+      return data.keys().hasAll([
+          'id', 'ownerId', 'name', 'type', 'os', 'model', 'batteryLevel',
+          'isCharging', 'ipAddress', 'connectionType', 'signalStrength',
+          'storageUsedGb', 'storageTotalGb', 'isOnline', 'isLocked',
+          'lastSyncTime', 'location', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'ownerId', 'name', 'type', 'os', 'model', 'batteryLevel',
+          'isCharging', 'ipAddress', 'connectionType', 'signalStrength',
+          'storageUsedGb', 'storageTotalGb', 'isOnline', 'isLocked',
+          'lastSyncTime', 'location', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.id) && data.id == deviceId
+        && isValidId(data.ownerId) && data.ownerId == userId && data.ownerId == request.auth.uid
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 100
+        && data.type is string && data.type in ['laptop', 'phone', 'tablet', 'desktop', 'wearable']
+        && data.os is string && data.os.size() >= 1 && data.os.size() <= 100
+        && data.model is string && data.model.size() >= 1 && data.model.size() <= 120
+        && data.batteryLevel is number && data.batteryLevel >= 0 && data.batteryLevel <= 100
+        && data.isCharging is bool
+        && data.ipAddress is string && data.ipAddress.size() >= 1 && data.ipAddress.size() <= 64
+        && data.connectionType is string && data.connectionType in ['Wi-Fi 6E', '5G Ultra', 'Bluetooth 5.3', 'Gigabit LAN']
+        && data.signalStrength is string && data.signalStrength in ['strong', 'good', 'fair']
+        && data.storageUsedGb is number && data.storageUsedGb >= 0
+        && data.storageTotalGb is number && data.storageTotalGb > 0
+        && data.isOnline is bool
+        && data.isLocked is bool
+        && data.lastSyncTime is string && data.lastSyncTime.size() >= 1 && data.lastSyncTime.size() <= 64
+        && data.location is string && data.location.size() >= 1 && data.location.size() <= 120
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidEcosystemFile(data, userId, fileId) {
+      return data.keys().hasAll([
+          'id', 'ownerId', 'name', 'sizeBytes', 'category', 'extension',
+          'modifiedAt', 'primaryDeviceId', 'syncedDeviceIds', 'isStarred',
+          'downloadCount', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'ownerId', 'name', 'sizeBytes', 'category', 'extension',
+          'modifiedAt', 'primaryDeviceId', 'syncedDeviceIds', 'isStarred',
+          'downloadCount', 'tag', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.id) && data.id == fileId
+        && isValidId(data.ownerId) && data.ownerId == userId && data.ownerId == request.auth.uid
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 255
+        && data.sizeBytes is number && data.sizeBytes >= 0
+        && data.category is string && data.category in ['document', 'image', 'video', 'archive', 'audio', 'code']
+        && data.extension is string && data.extension.size() >= 1 && data.extension.size() <= 20
+        && data.modifiedAt is string && data.modifiedAt.size() >= 1 && data.modifiedAt.size() <= 64
+        && isValidId(data.primaryDeviceId)
+        && data.syncedDeviceIds is list && data.syncedDeviceIds.size() <= 20
+        && (data.syncedDeviceIds.size() == 0 || (data.syncedDeviceIds[0] is string && data.syncedDeviceIds[0].size() <= 128))
+        && data.isStarred is bool
+        && data.downloadCount is number && data.downloadCount >= 0
+        && (!('tag' in data) || (data.tag is string && data.tag.size() <= 50))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidMessageThread(data, userId, threadId) {
+      return data.keys().hasAll([
+          'id', 'ownerId', 'contactName', 'contactHandle', 'channel',
+          'unreadCount', 'lastUpdated', 'isPinned', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'ownerId', 'contactName', 'contactHandle', 'contactRole',
+          'channel', 'unreadCount', 'lastUpdated', 'isPinned', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.id) && data.id == threadId
+        && isValidId(data.ownerId) && data.ownerId == userId && data.ownerId == request.auth.uid
+        && data.contactName is string && data.contactName.size() >= 1 && data.contactName.size() <= 100
+        && data.contactHandle is string && data.contactHandle.size() >= 1 && data.contactHandle.size() <= 120
+        && (!('contactRole' in data) || (data.contactRole is string && data.contactRole.size() <= 100))
+        && data.channel is string && data.channel in ['sms', 'intercom', 'encrypted']
+        && data.unreadCount is number && data.unreadCount >= 0
+        && data.lastUpdated is string && data.lastUpdated.size() >= 1 && data.lastUpdated.size() <= 64
+        && data.isPinned is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidMessage(data, userId, threadId, messageId) {
+      return data.keys().hasAll([
+          'id', 'ownerId', 'threadId', 'sender', 'text', 'timestamp',
+          'deviceOriginId', 'status', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'ownerId', 'threadId', 'sender', 'text', 'timestamp',
+          'deviceOriginId', 'status', 'createdAt'
+        ])
+        && isValidId(data.id) && data.id == messageId
+        && isValidId(data.ownerId) && data.ownerId == userId && data.ownerId == request.auth.uid
+        && isValidId(data.threadId) && data.threadId == threadId
+        && data.sender is string && data.sender in ['user', 'contact', 'system']
+        && data.text is string && data.text.size() >= 1 && data.text.size() <= 4000
+        && data.timestamp is string && data.timestamp.size() >= 1 && data.timestamp.size() <= 64
+        && isValidId(data.deviceOriginId)
+        && data.status is string && data.status in ['sent', 'delivered', 'read']
+        && data.createdAt is timestamp;
+    }
+
+    function isValidClipboardItem(data, userId, itemId) {
+      return data.keys().hasAll([
+          'id', 'ownerId', 'text', 'type', 'originDeviceId',
+          'createdAtLabel', 'isPinned', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'ownerId', 'text', 'type', 'originDeviceId',
+          'createdAtLabel', 'isPinned', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.id) && data.id == itemId
+        && isValidId(data.ownerId) && data.ownerId == userId && data.ownerId == request.auth.uid
+        && data.text is string && data.text.size() >= 1 && data.text.size() <= 10000
+        && data.type is string && data.type in ['text', 'link', 'code', 'json']
+        && isValidId(data.originDeviceId)
+        && data.createdAtLabel is string && data.createdAtLabel.size() >= 1 && data.createdAtLabel.size() <= 64
+        && data.isPinned is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // --- Collection Rules ---
+
+    // Private User Profile & Settings (PII strictly isolated to owner)
+    match /users/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if false;
+
+      allow create: if isVerifiedOwner(userId)
+        && isValidId(userId)
+        && isValidUserProfile(incoming(), userId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isVerifiedOwner(userId)
+        && isValidId(userId)
+        && isValidUserProfile(incoming(), userId)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          // Action: Update sync settings
+          incoming().diff(existing()).affectedKeys().hasOnly(['settings', 'updatedAt'])
+          // Action: Mark seeded
+          || incoming().diff(existing()).affectedKeys().hasOnly(['seeded', 'updatedAt'])
+          // Action: Update profile metadata
+          || incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'updatedAt'])
+        );
+
+      allow delete: if false;
+
+      // Devices Subcollection
+      match /devices/{deviceId} {
+        allow get: if isOwner(userId) && isValidId(userId) && isValidId(deviceId);
+        allow list: if isOwner(userId) && resource.data.ownerId == request.auth.uid;
+
+        allow create: if isVerifiedOwner(userId)
+          && isValidId(userId) && isValidId(deviceId)
+          && isValidDevice(incoming(), userId, deviceId)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time
+          && userProfileExists(userId);
+
+        allow update: if isVerifiedOwner(userId)
+          && isValidId(userId) && isValidId(deviceId)
+          && isValidDevice(incoming(), userId, deviceId)
+          && incoming().id == existing().id
+          && incoming().ownerId == existing().ownerId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && (
+            // Action: Toggle remote lock
+            incoming().diff(existing()).affectedKeys().hasOnly(['isLocked', 'updatedAt'])
+            // Action: Update sync timestamp / telemetry
+            || incoming().diff(existing()).affectedKeys().hasOnly(['lastSyncTime', 'updatedAt'])
+            || incoming().diff(existing()).affectedKeys().hasOnly(['batteryLevel', 'isCharging', 'isOnline', 'lastSyncTime', 'updatedAt'])
+          )
+          && userProfileExists(userId);
+
+        allow delete: if isVerifiedOwner(userId) && isValidId(userId) && isValidId(deviceId);
+      }
+
+      // Files Subcollection
+      match /files/{fileId} {
+        allow get: if isOwner(userId) && isValidId(userId) && isValidId(fileId);
+        allow list: if isOwner(userId) && resource.data.ownerId == request.auth.uid;
+
+        allow create: if isVerifiedOwner(userId)
+          && isValidId(userId) && isValidId(fileId)
+          && isValidEcosystemFile(incoming(), userId, fileId)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time
+          && userProfileExists(userId);
+
+        allow update: if isVerifiedOwner(userId)
+          && isValidId(userId) && isValidId(fileId)
+          && isValidEcosystemFile(incoming(), userId, fileId)
+          && incoming().id == existing().id
+          && incoming().ownerId == existing().ownerId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && (
+            // Action: Toggle star
+            incoming().diff(existing()).affectedKeys().hasOnly(['isStarred', 'updatedAt'])
+            // Action: Sync to another device
+            || incoming().diff(existing()).affectedKeys().hasOnly(['syncedDeviceIds', 'updatedAt'])
+            // Action: Increment download count
+            || incoming().diff(existing()).affectedKeys().hasOnly(['downloadCount', 'updatedAt'])
+          )
+          && userProfileExists(userId);
+
+        allow delete: if isVerifiedOwner(userId) && isValidId(userId) && isValidId(fileId);
+      }
+
+      // Message Threads Subcollection
+      match /threads/{threadId} {
+        allow get: if isOwner(userId) && isValidId(userId) && isValidId(threadId);
+        allow list: if isOwner(userId) && resource.data.ownerId == request.auth.uid;
+
+        allow create: if isVerifiedOwner(userId)
+          && isValidId(userId) && isValidId(threadId)
+          && isValidMessageThread(incoming(), userId, threadId)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time
+          && userProfileExists(userId);
+
+        allow update: if isVerifiedOwner(userId)
+          && isValidId(userId) && isValidId(threadId)
+          && isValidMessageThread(incoming(), userId, threadId)
+          && incoming().id == existing().id
+          && incoming().ownerId == existing().ownerId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && (
+            // Action: Mark thread read
+            incoming().diff(existing()).affectedKeys().hasOnly(['unreadCount', 'updatedAt'])
+            // Action: Update thread metadata on new message
+            || incoming().diff(existing()).affectedKeys().hasOnly(['unreadCount', 'lastUpdated', 'updatedAt'])
+            || incoming().diff(existing()).affectedKeys().hasOnly(['lastUpdated', 'updatedAt'])
+            // Action: Toggle pin
+            || incoming().diff(existing()).affectedKeys().hasOnly(['isPinned', 'updatedAt'])
+          )
+          && userProfileExists(userId);
+
+        allow delete: if isVerifiedOwner(userId) && isValidId(userId) && isValidId(threadId);
+
+        // Messages Subcollection inside Thread
+        match /messages/{messageId} {
+          allow get: if isOwner(userId) && isValidId(userId) && isValidId(threadId) && isValidId(messageId);
+          allow list: if isOwner(userId) && resource.data.ownerId == request.auth.uid;
+
+          allow create: if isVerifiedOwner(userId)
+            && isValidId(userId) && isValidId(threadId) && isValidId(messageId)
+            && isValidMessage(incoming(), userId, threadId, messageId)
+            && incoming().createdAt == request.time
+            && threadExists(userId, threadId);
+
+          allow update: if false;
+          allow delete: if isVerifiedOwner(userId) && isValidId(userId) && isValidId(threadId) && isValidId(messageId);
+        }
+      }
+
+      // Clipboard Subcollection
+      match /clipboard/{itemId} {
+        allow get: if isOwner(userId) && isValidId(userId) && isValidId(itemId);
+        allow list: if isOwner(userId) && resource.data.ownerId == request.auth.uid;
+
+        allow create: if isVerifiedOwner(userId)
+          && isValidId(userId) && isValidId(itemId)
+          && isValidClipboardItem(incoming(), userId, itemId)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time
+          && userProfileExists(userId);
+
+        allow update: if isVerifiedOwner(userId)
+          && isValidId(userId) && isValidId(itemId)
+          && isValidClipboardItem(incoming(), userId, itemId)
+          && incoming().id == existing().id
+          && incoming().ownerId == existing().ownerId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && (
+            // Action: Toggle pin
+            incoming().diff(existing()).affectedKeys().hasOnly(['isPinned', 'updatedAt'])
+          )
+          && userProfileExists(userId);
+
+        allow delete: if isVerifiedOwner(userId) && isValidId(userId) && isValidId(itemId);
+      }
+    }
+  }
+}

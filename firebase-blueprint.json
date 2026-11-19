@@ -1,0 +1,402 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated user account profile and Wi-Connect synchronization settings.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Firebase Auth UID of the account owner."
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "description": "Display name of the user."
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 254,
+          "description": "Verified email address of the user."
+        },
+        "photoURL": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Optional avatar URL."
+        },
+        "seeded": {
+          "type": "boolean",
+          "description": "Whether starter demo data has been initialized for this user."
+        },
+        "settings": {
+          "type": "object",
+          "description": "User synchronization preferences."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when account was initialized."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of last profile or settings update."
+        }
+      },
+      "required": ["uid", "displayName", "email", "seeded", "settings", "createdAt", "updatedAt"]
+    },
+    "Device": {
+      "title": "Device",
+      "description": "A paired hardware terminal in the user's Wi-Connect ecosystem.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "type": {
+          "type": "string",
+          "enum": ["laptop", "phone", "tablet", "desktop", "wearable"]
+        },
+        "os": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "batteryLevel": {
+          "type": "number"
+        },
+        "isCharging": {
+          "type": "boolean"
+        },
+        "ipAddress": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "connectionType": {
+          "type": "string",
+          "enum": ["Wi-Fi 6E", "5G Ultra", "Bluetooth 5.3", "Gigabit LAN"]
+        },
+        "signalStrength": {
+          "type": "string",
+          "enum": ["strong", "good", "fair"]
+        },
+        "storageUsedGb": {
+          "type": "number"
+        },
+        "storageTotalGb": {
+          "type": "number"
+        },
+        "isOnline": {
+          "type": "boolean"
+        },
+        "isLocked": {
+          "type": "boolean"
+        },
+        "lastSyncTime": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "location": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id", "ownerId", "name", "type", "os", "model", "batteryLevel",
+        "isCharging", "ipAddress", "connectionType", "signalStrength",
+        "storageUsedGb", "storageTotalGb", "isOnline", "isLocked",
+        "lastSyncTime", "location", "createdAt", "updatedAt"
+      ]
+    },
+    "EcosystemFile": {
+      "title": "EcosystemFile",
+      "description": "Metadata for a file tracked and synced across the user's devices.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "sizeBytes": {
+          "type": "number"
+        },
+        "category": {
+          "type": "string",
+          "enum": ["document", "image", "video", "archive", "audio", "code"]
+        },
+        "extension": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20
+        },
+        "modifiedAt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "primaryDeviceId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "syncedDeviceIds": {
+          "type": "array"
+        },
+        "isStarred": {
+          "type": "boolean"
+        },
+        "downloadCount": {
+          "type": "number"
+        },
+        "tag": {
+          "type": "string",
+          "maxLength": 50
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id", "ownerId", "name", "sizeBytes", "category", "extension",
+        "modifiedAt", "primaryDeviceId", "syncedDeviceIds", "isStarred",
+        "downloadCount", "createdAt", "updatedAt"
+      ]
+    },
+    "MessageThread": {
+      "title": "MessageThread",
+      "description": "A cross-device communication channel or intercom thread.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "contactName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "contactHandle": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "contactRole": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "channel": {
+          "type": "string",
+          "enum": ["sms", "intercom", "encrypted"]
+        },
+        "unreadCount": {
+          "type": "number"
+        },
+        "lastUpdated": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "isPinned": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id", "ownerId", "contactName", "contactHandle", "channel",
+        "unreadCount", "lastUpdated", "isPinned", "createdAt", "updatedAt"
+      ]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "An individual message within a cross-device thread.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "threadId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "sender": {
+          "type": "string",
+          "enum": ["user", "contact", "system"]
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "timestamp": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "deviceOriginId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["sent", "delivered", "read"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id", "ownerId", "threadId", "sender", "text", "timestamp",
+        "deviceOriginId", "status", "createdAt"
+      ]
+    },
+    "ClipboardItem": {
+      "title": "ClipboardItem",
+      "description": "A snippet shared via the Universal Shared Clipboard.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 10000
+        },
+        "type": {
+          "type": "string",
+          "enum": ["text", "link", "code", "json"]
+        },
+        "originDeviceId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "createdAtLabel": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "isPinned": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id", "ownerId", "text", "type", "originDeviceId",
+        "createdAtLabel", "isPinned", "createdAt", "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Private user profile and ecosystem sync settings owned exclusively by userId."
+    },
+    "/users/{userId}/devices/{deviceId}": {
+      "schema": { "$ref": "#/entities/Device" },
+      "description": "Paired hardware terminals belonging to userId."
+    },
+    "/users/{userId}/files/{fileId}": {
+      "schema": { "$ref": "#/entities/EcosystemFile" },
+      "description": "File catalog and sync metadata belonging to userId."
+    },
+    "/users/{userId}/threads/{threadId}": {
+      "schema": { "$ref": "#/entities/MessageThread" },
+      "description": "Cross-device messaging threads belonging to userId."
+    },
+    "/users/{userId}/threads/{threadId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/Message" },
+      "description": "Individual messages inside a user's thread."
+    },
+    "/users/{userId}/clipboard/{itemId}": {
+      "schema": { "$ref": "#/entities/ClipboardItem" },
+      "description": "Universal shared clipboard items belonging to userId."
+    }
+  }
+}

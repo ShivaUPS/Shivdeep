@@ -1,0 +1,7 @@
+{
+  "name": "Wi-Connect",
+  "description": "Unified digital ecosystem to connect devices, files, messages, storage, and cross-device sync settings.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
